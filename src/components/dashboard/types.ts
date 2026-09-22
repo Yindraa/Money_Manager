@@ -14,6 +14,17 @@ export type TransactionRow = {
   categoryColor: string;
 };
 
+export type TransactionMutationInput = {
+  bookId: string;
+  transactionDate: string;
+  description: string;
+  categoryId: string;
+  paymentMethodId: string;
+  amount: number;
+  type: "expense" | "income";
+  notes: string;
+};
+
 export type SelectOption = { id: string; name: string; color?: string };
 
 export type BookRole = "owner" | "editor" | "viewer";

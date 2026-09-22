@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownLeft, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleDollarSign, Copy, Ellipsis, LayoutDashboard, Link2, ListFilter, Menu, Pencil, Plus, Settings2, Share2, Sparkles, Trash2, TrendingDown, UserMinus, Users, WalletCards, X } from "lucide-react";
 import { setOpeningBalance } from "@/app/actions/monthly-periods";
-import { createTransaction, deleteTransaction, updateTransaction } from "@/app/actions/transactions";
 import { createShareLink, removeBookMember, revokeShareLink, updateMemberRole, updateShareLinkRole } from "@/app/actions/sharing";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast-provider";
-import type { DashboardData, SelectOption, TransactionRow } from "./types";
+import type { DashboardData, SelectOption, TransactionMutationInput, TransactionRow } from "./types";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 const formatCompactCurrency = (value: number) => value >= 1_000_000 ? `Rp${(value / 1_000_000).toFixed(1)} jt` : `Rp${Math.round(value / 1_000)} rb`;
@@ -23,40 +22,31 @@ function StatCard({ label, value, helper, tone, icon, className = "" }: { label:
   </article>;
 }
 
-export function TransactionForm({ bookId, categories, paymentMethods, defaultDate, transaction, onClose }: { bookId: string; categories: SelectOption[]; paymentMethods: SelectOption[]; defaultDate: string; transaction?: TransactionRow; onClose: () => void }) {
-  const router = useRouter();
-  const toast = useToast();
+export function TransactionForm({ bookId, categories, paymentMethods, defaultDate, transaction, onClose, onSave }: { bookId: string; categories: SelectOption[]; paymentMethods: SelectOption[]; defaultDate: string; transaction?: TransactionRow; onClose: () => void; onSave: (values: TransactionMutationInput) => void }) {
   const [type, setType] = useState<"expense" | "income">(transaction?.type ?? "expense");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
   const isEditing = Boolean(transaction);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const values = { bookId, type, amount: form.get("amount"), description: form.get("description"), transactionDate: form.get("transactionDate"), categoryId: form.get("categoryId"), paymentMethodId: form.get("paymentMethodId"), notes: form.get("notes") };
-    setError(null);
-    startTransition(async () => {
-      try {
-        await toast.track(
-          async () => { if (transaction) await updateTransaction(transaction.id, values); else await createTransaction(values); },
-          { loading: transaction ? "Menyimpan perubahan transaksi..." : "Menambahkan transaksi...", success: transaction ? "Transaksi berhasil diperbarui." : "Transaksi berhasil ditambahkan." },
-        );
-        onClose();
-        router.refresh();
-      } catch (submissionError) {
-        setError(submissionError instanceof Error ? submissionError.message : "Transaksi gagal disimpan.");
-      }
+    onSave({
+      bookId,
+      type,
+      amount: Number(form.get("amount")),
+      description: String(form.get("description") ?? ""),
+      transactionDate: String(form.get("transactionDate") ?? ""),
+      categoryId: String(form.get("categoryId") ?? ""),
+      paymentMethodId: String(form.get("paymentMethodId") ?? ""),
+      notes: String(form.get("notes") ?? ""),
     });
   }
 
   return <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/25 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label={isEditing ? "Edit transaksi" : "Tambah transaksi"}>
-    <button className="absolute inset-0 cursor-default" aria-label="Tutup formulir" onClick={onClose} disabled={isPending} />
+    <button className="absolute inset-0 cursor-default" aria-label="Tutup formulir" onClick={onClose} />
     <aside className="relative flex h-full w-full max-w-[460px] animate-slide-in flex-col bg-[#fbfcfa] shadow-2xl">
-      <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">{isEditing ? "Perbarui catatan" : "Transaksi baru"}</p><h2 className="mt-1 text-xl font-semibold tracking-tight">{isEditing ? "Edit transaksi" : "Catat transaksi"}</h2></div><button onClick={onClose} disabled={isPending} className="icon-button" aria-label="Tutup"><X size={19} /></button></div>
+      <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">{isEditing ? "Perbarui catatan" : "Transaksi baru"}</p><h2 className="mt-1 text-xl font-semibold tracking-tight">{isEditing ? "Edit transaksi" : "Catat transaksi"}</h2></div><button onClick={onClose} className="icon-button" aria-label="Tutup"><X size={19} /></button></div>
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto">
         <div className="space-y-5 p-6">
-          {error && <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
           <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setType("expense")} className={`type-button ${type === "expense" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}><ArrowUpRight size={16} /> Pengeluaran</button><button type="button" onClick={() => setType("income")} className={`type-button ${type === "income" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}><ArrowDownLeft size={16} /> Pemasukan</button></div>
           <label className="form-label">Nominal<div className="relative mt-2"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">Rp</span><input name="amount" className="form-input form-input-leading text-lg font-semibold" type="number" inputMode="numeric" min="1" step="1" placeholder="0" defaultValue={transaction?.amount} required /></div></label>
           <label className="form-label">Keterangan<input name="description" className="form-input mt-2" placeholder="Contoh: Makan siang" defaultValue={transaction?.description} required minLength={2} maxLength={160} /></label>
@@ -64,39 +54,20 @@ export function TransactionForm({ bookId, categories, paymentMethods, defaultDat
           <label className="form-label">Metode pembayaran<select name="paymentMethodId" className="form-input mt-2" defaultValue={transaction?.paymentMethodId} required>{paymentMethods.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="form-label">Catatan <span className="font-normal text-slate-400">(opsional)</span><textarea name="notes" className="form-input mt-2 min-h-28 resize-none" maxLength={1000} placeholder="Tambahkan detail jika diperlukan" defaultValue={transaction?.notes ?? ""} /></label>
         </div>
-        <div className="mt-auto flex gap-3 border-t border-slate-200 bg-white px-6 py-5"><button type="button" onClick={onClose} disabled={isPending} className="secondary-button flex-1">Batal</button><button type="submit" disabled={isPending} className="primary-button flex-1">{isPending ? "Menyimpan..." : isEditing ? "Simpan perubahan" : "Simpan transaksi"}</button></div>
+        <div className="mt-auto flex gap-3 border-t border-slate-200 bg-white px-6 py-5"><button type="button" onClick={onClose} className="secondary-button flex-1">Batal</button><button type="submit" className="primary-button flex-1">{isEditing ? "Simpan perubahan" : "Simpan transaksi"}</button></div>
       </form>
     </aside>
   </div>;
 }
 
-export function DeleteConfirmation({ transaction, onClose }: { transaction: TransactionRow; onClose: () => void }) {
-  const router = useRouter();
-  const toast = useToast();
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function handleDelete() {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await toast.track(() => deleteTransaction(transaction.id), { loading: "Menghapus transaksi...", success: "Transaksi berhasil dihapus." });
-        onClose();
-        router.refresh();
-      } catch (deletionError) {
-        setError(deletionError instanceof Error ? deletionError.message : "Transaksi gagal dihapus.");
-      }
-    });
-  }
-
+export function DeleteConfirmation({ transaction, onClose, onConfirm }: { transaction: TransactionRow; onClose: () => void; onConfirm: () => void }) {
   return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 px-4 backdrop-blur-[2px]" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
-    <button className="absolute inset-0 cursor-default" aria-label="Tutup konfirmasi" onClick={onClose} disabled={isPending} />
+    <button className="absolute inset-0 cursor-default" aria-label="Tutup konfirmasi" onClick={onClose} />
     <section className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
       <span className="grid size-11 place-items-center rounded-2xl bg-red-50 text-red-600"><Trash2 size={20} /></span>
       <h2 id="delete-title" className="mt-5 text-xl font-semibold tracking-tight text-slate-950">Hapus transaksi?</h2>
       <p className="mt-2 text-sm leading-6 text-slate-500">Transaksi <strong className="font-semibold text-slate-700">{transaction.description}</strong> senilai {formatCurrency(transaction.amount)} akan dihapus permanen.</p>
-      {error && <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} disabled={isPending} className="secondary-button">Batal</button><button type="button" onClick={handleDelete} disabled={isPending} className="inline-flex h-[2.6rem] items-center justify-center gap-2 rounded-[0.8rem] bg-red-600 px-4 text-[0.82rem] font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"><Trash2 size={16} /> {isPending ? "Menghapus..." : "Hapus transaksi"}</button></div>
+      <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="secondary-button">Batal</button><button type="button" onClick={onConfirm} className="inline-flex h-[2.6rem] items-center justify-center gap-2 rounded-[0.8rem] bg-red-600 px-4 text-[0.82rem] font-semibold text-white transition hover:bg-red-700"><Trash2 size={16} /> Hapus transaksi</button></div>
     </section>
   </div>;
 }

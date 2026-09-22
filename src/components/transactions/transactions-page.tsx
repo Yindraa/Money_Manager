@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight, CalendarDays, LayoutDashboard, ListFilter, Plus, Search, Settings, WalletCards } from "lucide-react";
+import { createTransaction, deleteTransaction, updateTransaction } from "@/app/actions/transactions";
 import { createClient } from "@/lib/supabase/client";
 import { DeleteConfirmation, TransactionForm, TransactionMenu } from "@/components/dashboard/dashboard";
-import type { DashboardData, TransactionRow } from "@/components/dashboard/types";
+import { useToast } from "@/components/ui/toast-provider";
+import type { DashboardData, TransactionMutationInput, TransactionRow } from "@/components/dashboard/types";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 
@@ -14,8 +16,19 @@ function CategoryBadge({ name, color }: { name: string; color: string }) {
   return <span className="category-pill border" style={{ backgroundColor: `${color}18`, borderColor: `${color}40`, color }}>{name}</span>;
 }
 
+function sortTransactions(items: TransactionRow[]) {
+  return [...items].sort((first, second) => second.dateIso.localeCompare(first.dateIso));
+}
+
+function formatTransactionDate(value: string) {
+  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+}
+
 export function TransactionsPage({ data }: { data: DashboardData }) {
   const router = useRouter();
+  const toast = useToast();
+  const [transactions, setTransactions] = useState(data.transactions);
+  const [serverTransactions, setServerTransactions] = useState(data.transactions);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionRow | null>(null);
@@ -27,15 +40,20 @@ export function TransactionsPage({ data }: { data: DashboardData }) {
   const defaultDate = today.startsWith(monthValue) ? today : data.month;
   const canEdit = data.role === "owner" || data.role === "editor";
 
-  const filteredTransactions = useMemo(() => data.transactions.filter((item) => {
+  const filteredTransactions = useMemo(() => transactions.filter((item) => {
     const matchesSearch = `${item.description} ${item.category} ${item.method} ${item.notes ?? ""} ${item.createdByName}`.toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === "all" || item.type === typeFilter;
     const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
     return matchesSearch && matchesType && matchesCategory;
-  }), [categoryFilter, data.transactions, search, typeFilter]);
+  }), [categoryFilter, search, transactions, typeFilter]);
 
   const filteredExpenses = filteredTransactions.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
   const filteredIncome = filteredTransactions.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
+
+  if (serverTransactions !== data.transactions) {
+    setServerTransactions(data.transactions);
+    setTransactions(data.transactions);
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,6 +78,65 @@ export function TransactionsPage({ data }: { data: DashboardData }) {
   function openNew() { setEditingTransaction(null); setIsFormOpen(true); }
   function openEdit(transaction: TransactionRow) { setEditingTransaction(transaction); setIsFormOpen(true); }
   function closeForm() { setEditingTransaction(null); setIsFormOpen(false); }
+
+  function saveTransaction(values: TransactionMutationInput) {
+    const original = editingTransaction;
+    const optimisticId = original?.id ?? `optimistic-${crypto.randomUUID()}`;
+    const category = data.categories.find((item) => item.id === values.categoryId);
+    const paymentMethod = data.paymentMethods.find((item) => item.id === values.paymentMethodId);
+    const optimisticTransaction: TransactionRow = {
+      id: optimisticId,
+      dateIso: values.transactionDate,
+      date: formatTransactionDate(values.transactionDate),
+      description: values.description.trim(),
+      categoryId: values.categoryId,
+      category: category?.name ?? "Tanpa kategori",
+      categoryColor: category?.color ?? "#64748b",
+      paymentMethodId: values.paymentMethodId,
+      method: paymentMethod?.name ?? "—",
+      amount: values.amount,
+      type: values.type,
+      notes: values.notes.trim() || null,
+      createdByName: original?.createdByName ?? data.profileName,
+    };
+
+    setTransactions((current) => sortTransactions(original
+      ? current.map((item) => item.id === original.id ? optimisticTransaction : item)
+      : [optimisticTransaction, ...current]));
+    closeForm();
+
+    const task = original
+      ? updateTransaction(original.id, values)
+      : createTransaction(values);
+    void toast.track(
+      () => task,
+      {
+        loading: original ? "Menyimpan perubahan transaksi..." : "Menambahkan transaksi...",
+        success: original ? "Transaksi berhasil diperbarui." : "Transaksi berhasil ditambahkan.",
+      },
+    ).then((result) => {
+      if (!original) {
+        setTransactions((current) => current.map((item) => item.id === optimisticId ? { ...item, id: result.id } : item));
+      }
+    }).catch(() => {
+      setTransactions((current) => original
+        ? sortTransactions(current.map((item) => item.id === original.id ? original : item))
+        : current.filter((item) => item.id !== optimisticId));
+    });
+  }
+
+  function removeTransaction(transaction: TransactionRow) {
+    setTransactions((current) => current.filter((item) => item.id !== transaction.id));
+    setDeletingTransaction(null);
+    void toast.track(
+      () => deleteTransaction(transaction.id),
+      { loading: "Menghapus transaksi...", success: "Transaksi berhasil dihapus." },
+    ).catch(() => {
+      setTransactions((current) => current.some((item) => item.id === transaction.id)
+        ? current
+        : sortTransactions([transaction, ...current]));
+    });
+  }
 
   return <main className="min-h-screen bg-[#f3f5f1] text-slate-950">
     <header className="border-b border-slate-200/80 bg-[#f8faf7]/95 backdrop-blur-xl">
@@ -117,7 +194,7 @@ export function TransactionsPage({ data }: { data: DashboardData }) {
     </div>
 
     {canEdit && <button onClick={openNew} className="fixed bottom-5 right-5 grid size-14 place-items-center rounded-full bg-[#123c32] text-white shadow-xl sm:hidden" aria-label="Tambah transaksi"><Plus size={24} /></button>}
-    {canEdit && isFormOpen && <TransactionForm bookId={data.book.id} categories={data.categories} paymentMethods={data.paymentMethods} defaultDate={defaultDate} transaction={editingTransaction ?? undefined} onClose={closeForm} />}
-    {canEdit && deletingTransaction && <DeleteConfirmation transaction={deletingTransaction} onClose={() => setDeletingTransaction(null)} />}
+    {canEdit && isFormOpen && <TransactionForm bookId={data.book.id} categories={data.categories} paymentMethods={data.paymentMethods} defaultDate={defaultDate} transaction={editingTransaction ?? undefined} onClose={closeForm} onSave={saveTransaction} />}
+    {canEdit && deletingTransaction && <DeleteConfirmation transaction={deletingTransaction} onClose={() => setDeletingTransaction(null)} onConfirm={() => removeTransaction(deletingTransaction)} />}
   </main>;
 }

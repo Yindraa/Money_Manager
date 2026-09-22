@@ -35,7 +35,6 @@ export async function createTransaction(input: unknown) {
 
   if (error) throw new Error(error.message);
   revalidatePath("/");
-  revalidatePath("/transactions");
   return { id: data.id };
 }
 
@@ -63,7 +62,7 @@ export async function updateTransaction(id: string, input: unknown) {
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Transaksi tidak ditemukan atau Anda tidak memiliki akses.");
   revalidatePath("/");
-  revalidatePath("/transactions");
+  return { id: data.id };
 }
 
 export async function deleteTransaction(id: string) {
@@ -79,7 +78,6 @@ export async function deleteTransaction(id: string) {
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Transaksi tidak ditemukan atau Anda tidak memiliki akses.");
   revalidatePath("/");
-  revalidatePath("/transactions");
 }
 
 function zUuid(value: string) {
