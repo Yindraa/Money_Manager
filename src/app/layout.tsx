@@ -5,6 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Dompetku — Money Manager",
   description: "Kelola dana bulanan dan catat setiap pengeluaran dengan mudah.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
