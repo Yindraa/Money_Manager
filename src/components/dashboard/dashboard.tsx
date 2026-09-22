@@ -216,11 +216,11 @@ export function ShareDialog({ data, onClose }: { data: DashboardData; onClose: (
   </div>;
 }
 
-export function TransactionMenu({ transaction, onEdit, onDelete }: { transaction: TransactionRow; onEdit: () => void; onDelete: () => void }) {
+export function TransactionMenu({ transaction, onEdit, onDelete, placement = "down" }: { transaction: TransactionRow; onEdit: () => void; onDelete: () => void; placement?: "up" | "down" }) {
   const [isOpen, setIsOpen] = useState(false);
   return <div className="relative">
     <button className="icon-button" aria-label={`Menu ${transaction.description}`} aria-expanded={isOpen} onClick={() => setIsOpen((value) => !value)}><Ellipsis size={18} /></button>
-    {isOpen && <div className="absolute right-0 top-11 z-20 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50" onClick={() => { setIsOpen(false); onEdit(); }}><Pencil size={15} /> Edit</button><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50" onClick={() => { setIsOpen(false); onDelete(); }}><Trash2 size={15} /> Hapus</button></div>}
+    {isOpen && <div className={`absolute right-0 z-30 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl ${placement === "up" ? "bottom-11" : "top-11"}`}><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50" onClick={() => { setIsOpen(false); onEdit(); }}><Pencil size={15} /> Edit</button><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50" onClick={() => { setIsOpen(false); onDelete(); }}><Trash2 size={15} /> Hapus</button></div>}
   </div>;
 }
 

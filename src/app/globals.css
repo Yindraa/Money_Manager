@@ -72,6 +72,7 @@ button { cursor: pointer; }
 button[aria-label="Buka menu"] { display: none; }
 .form-label { display: block; color: #334155; font-size: 0.8rem; font-weight: 650; }
 .form-input { display: block; width: 100%; border: 1px solid #dfe5e1; border-radius: 0.8rem; background: white; padding: 0.75rem 0.9rem; color: #0f172a; font-size: 0.875rem; outline: none; transition: 160ms ease; }
+.form-input.filter-select { height: 2.75rem; padding-block: 0; line-height: normal; }
 .form-input-leading { padding-left: 2.75rem; }
 .form-input:focus { border-color: #2f7d68; box-shadow: 0 0 0 3px rgb(47 125 104 / 0.1); }
 .type-button { display: flex; height: 2.55rem; align-items: center; justify-content: center; gap: 0.45rem; border-radius: 0.6rem; font-size: 0.78rem; font-weight: 650; transition: 160ms ease; }
