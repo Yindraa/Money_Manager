@@ -1,0 +1,2 @@
+-- Data awal dibuat otomatis oleh trigger saat pengguna membuat buku keuangan.
+-- Tambahkan seed khusus pengembangan di file ini jika diperlukan.
