@@ -60,5 +60,4 @@ export type DashboardData = {
   categories: SelectOption[];
   paymentMethods: SelectOption[];
   transactions: TransactionRow[];
-  monthlyExpenseTrend: { month: string; label: string; value: number }[];
 };
