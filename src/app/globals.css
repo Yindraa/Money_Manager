@@ -69,7 +69,6 @@ button { cursor: pointer; }
 
 .category-pill { display: inline-flex; border-radius: 999px; background: #f1f5f3; padding: 0.35rem 0.65rem; color: #51625c; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
 
-button[aria-label="Buka menu"] { display: none; }
 .form-label { display: block; color: #334155; font-size: 0.8rem; font-weight: 650; }
 .form-input { display: block; width: 100%; border: 1px solid #dfe5e1; border-radius: 0.8rem; background: white; padding: 0.75rem 0.9rem; color: #0f172a; font-size: 0.875rem; outline: none; transition: 160ms ease; }
 .form-input.filter-select { height: 2.75rem; padding-block: 0; line-height: normal; }
