@@ -25,7 +25,11 @@ export function ShareAccept({ token }: { token: string }) {
         router.push(`/?book=${encodeURIComponent(result.bookId)}`);
       } catch (acceptError) {
         const message = acceptError instanceof Error ? acceptError.message : "Undangan tidak dapat diterima.";
-        setError(message.includes("Invalid or expired") ? "Link undangan tidak valid, sudah kedaluwarsa, atau telah dicabut." : message);
+        if (message.toLowerCase().includes("anonymous sign-ins are disabled")) {
+          setError("Akses tamu belum diaktifkan oleh owner. Silakan hubungi owner dan coba buka kembali link ini setelah akses diaktifkan.");
+        } else {
+          setError(message.includes("Invalid or expired") ? "Link undangan tidak valid, sudah kedaluwarsa, atau telah dicabut." : message);
+        }
       }
     });
   }
