@@ -81,4 +81,5 @@ button[aria-label="Buka menu"] { display: none; }
 .animate-slide-in { animation: slide-in 220ms cubic-bezier(0.22, 1, 0.36, 1); }
 
 @media (min-width: 640px) { .summary-card { padding: 1.55rem; } .panel { padding: 1.5rem; } }
+@media (max-width: 399px) { select[aria-label="Pilih buku keuangan"] { max-width: 7rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
