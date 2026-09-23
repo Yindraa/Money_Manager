@@ -24,6 +24,15 @@ type RawTransaction = {
   creator: { display_name: string } | null;
 };
 
+type RawMonthlyExpense = {
+  transaction_date: string;
+  amount: number | string;
+};
+
+type LoadMoneyManagerOptions = {
+  includeMonthlyTrend?: boolean;
+};
+
 function currentMonthInJakarta() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -35,7 +44,7 @@ function currentMonthInJakarta() {
   return `${year}-${month}`;
 }
 
-export async function loadMoneyManagerData(query: MoneyManagerSearchParams) {
+export async function loadMoneyManagerData(query: MoneyManagerSearchParams, options: LoadMoneyManagerOptions = {}) {
   if (!isSupabaseConfigured()) redirect("/login?error=config");
 
   const supabase = await createClient();
@@ -65,8 +74,9 @@ export async function loadMoneyManagerData(query: MoneyManagerSearchParams) {
   const book = books.find((item) => item.id === requestedBookId) ?? books[0];
   const [selectedYear, selectedMonth] = monthValue.split("-").map(Number);
   const nextMonth = new Date(Date.UTC(selectedYear, selectedMonth, 1)).toISOString().slice(0, 10);
+  const trendStart = new Date(Date.UTC(selectedYear, selectedMonth - 6, 1)).toISOString().slice(0, 10);
 
-  const [periodResult, categoriesResult, methodsResult, transactionsResult, membershipResult, membersResult, linksResult] = await Promise.all([
+  const [periodResult, categoriesResult, methodsResult, transactionsResult, membershipResult, membersResult, linksResult, monthlyTrendResult] = await Promise.all([
     supabase.from("monthly_periods").select("opening_balance").eq("book_id", book.id).eq("month", month).maybeSingle(),
     supabase.from("categories").select("id, name, color").eq("book_id", book.id).eq("is_active", true).order("name"),
     supabase.from("payment_methods").select("id, name").eq("book_id", book.id).eq("is_active", true).order("name"),
@@ -74,9 +84,12 @@ export async function loadMoneyManagerData(query: MoneyManagerSearchParams) {
     supabase.from("book_members").select("role, expires_at").eq("book_id", book.id).eq("user_id", userId).maybeSingle(),
     supabase.from("book_members").select("user_id, role, joined_at, expires_at, profiles(display_name)").eq("book_id", book.id).order("joined_at", { ascending: true }),
     supabase.from("share_links").select("id, role, expires_at, usage_count, max_uses, created_at").eq("book_id", book.id).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }),
+    options.includeMonthlyTrend
+      ? supabase.from("transactions").select("transaction_date, amount").eq("book_id", book.id).eq("type", "expense").gte("transaction_date", trendStart).lt("transaction_date", nextMonth)
+      : Promise.resolve({ data: [] as RawMonthlyExpense[], error: null }),
   ]);
 
-  const queryError = periodResult.error || categoriesResult.error || methodsResult.error || transactionsResult.error || membershipResult.error || membersResult.error || linksResult.error;
+  const queryError = periodResult.error || categoriesResult.error || methodsResult.error || transactionsResult.error || membershipResult.error || membersResult.error || linksResult.error || monthlyTrendResult.error;
   if (queryError) throw new Error(queryError.message);
 
   const transactions = (transactionsResult.data as unknown as RawTransaction[]).map<TransactionRow>((row) => ({
@@ -112,6 +125,21 @@ export async function loadMoneyManagerData(query: MoneyManagerSearchParams) {
     createdAt: link.created_at,
   })) satisfies ShareLink[];
 
+  const expenseByMonth = (monthlyTrendResult.data as RawMonthlyExpense[]).reduce((totals, item) => {
+    const key = item.transaction_date.slice(0, 7);
+    totals.set(key, (totals.get(key) ?? 0) + Number(item.amount));
+    return totals;
+  }, new Map<string, number>());
+  const monthlyExpenseTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(Date.UTC(selectedYear, selectedMonth - 6 + index, 1));
+    const key = date.toISOString().slice(0, 7);
+    return {
+      month: key,
+      label: new Intl.DateTimeFormat("id-ID", { month: "short", timeZone: "UTC" }).format(date),
+      value: expenseByMonth.get(key) ?? 0,
+    };
+  });
+
   const data: DashboardData = {
     book: { id: book.id, name: book.name },
     books: books.map(({ id, name }) => ({ id, name })),
@@ -126,6 +154,7 @@ export async function loadMoneyManagerData(query: MoneyManagerSearchParams) {
     categories: categoriesResult.data ?? [],
     paymentMethods: methodsResult.data ?? [],
     transactions,
+    monthlyExpenseTrend,
   };
 
   return { data, profileName, email, month };

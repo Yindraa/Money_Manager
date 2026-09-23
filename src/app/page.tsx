@@ -5,7 +5,7 @@ import { loadMoneyManagerData, type MoneyManagerSearchParams } from "@/lib/data/
 export const dynamic = "force-dynamic";
 
 export default async function Home({ searchParams }: { searchParams: Promise<MoneyManagerSearchParams> }) {
-  const result = await loadMoneyManagerData(await searchParams);
+  const result = await loadMoneyManagerData(await searchParams, { includeMonthlyTrend: true });
   if (!result.data) return <Onboarding profileName={result.profileName} month={result.month} />;
   return <Dashboard data={result.data} />;
 }
